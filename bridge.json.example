@@ -1,0 +1,24 @@
+{
+    "bbs_url": "https://yourbbs.example.com",
+    "api_key": "replace-with-your-PACKET_BBS_API_KEY-from-bbs-env",
+
+    "serial_port": "/dev/ttyUSB0",
+    "baud_rate": 115200,
+
+    "interface": "meshcore",
+
+    "max_send_line_length": 200,
+    "inter_chunk_delay_ms": 500,
+    "min_command_interval_seconds": 2,
+
+    "post_open_delay_seconds": 0,
+    "handshake_timeout_seconds": 30,
+    "reconnect_delay_seconds": 5,
+
+    "poll_interval_seconds": 30,
+
+    "advert_zero_hop_interval_seconds": 0,
+    "advert_flood_interval_seconds": 0,
+
+    "http_timeout": 15
+}
