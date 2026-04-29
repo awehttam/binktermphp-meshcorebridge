@@ -162,6 +162,12 @@ Inbound radio-to-BBS flow:
 
 5. The plain-text API response is sent back as a MeshCore direct message.
 
+MeshCore requires a contact record for a remote node before messages from that node
+will pass through to the bridge. The device can be configured to auto-add users
+based on adverts; when another node advertises itself, the local MeshCore node
+adds the contact and will then accept messages from that remote user. Contacts can
+also be added manually to allow reception from specific remote nodes.
+
 Outbound BBS-to-radio flow:
 
 1. The bridge remembers nodes that have recently contacted it.
