@@ -1,6 +1,6 @@
 {
     "bbs_url": "https://yourbbs.example.com",
-    "api_key": "replace-with-your-PACKET_BBS_API_KEY-from-bbs-env",
+    "api_key": "replace-with-your-bbs-api-key",
 
     "serial_port": "/dev/ttyUSB0",
     "baud_rate": 115200,

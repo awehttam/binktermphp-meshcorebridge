@@ -13,7 +13,8 @@
  * Configuration is read from bridge.json (or the path given as argument).
  * Copy bridge.json.example to bridge.json and edit it before running.
  *
- * Interactive console commands while running:
+ * Interactive console commands while running, when non-blocking STDIN is
+ * available. These are disabled for Windows TTY sessions:
  *   advert / a   Send zero-hop advert immediately
  *   flood / af   Send flood advert immediately
  *   help / ?     Show commands
@@ -45,7 +46,8 @@ Options:
   --log-level=DEBUG    Alias for --debug
   --help, -h           Show this help
 
-Interactive commands while running:
+Interactive commands while running, when non-blocking STDIN is available
+(disabled for Windows TTY sessions):
   advert / a           Send zero-hop advert immediately
   flood / af           Send flood advert immediately
   help / ?             Show console commands

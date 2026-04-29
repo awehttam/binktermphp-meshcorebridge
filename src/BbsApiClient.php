@@ -5,8 +5,8 @@ namespace MeshCoreBridge;
 /**
  * HTTP client for the binkterm-php packet BBS gateway API.
  *
- * Communicates with the BBS over HTTPS using the pre-shared PACKET_BBS_API_KEY
- * sent as a Bearer token.
+ * Communicates with the BBS over HTTPS using the configured API key sent as a
+ * Bearer token.
  */
 class BbsApiClient
 {
