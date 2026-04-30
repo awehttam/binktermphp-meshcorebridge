@@ -35,6 +35,7 @@ class MeshCoreBridge
     private int  $lastPollTime      = 0;
     private int  $lastZeroHopAdvert = 0;
     private int  $lastFloodAdvert   = 0;
+    private bool $startupAdvertSent = false;
     private float $lastMessageProbeTime = 0.0;
 
     /** Whether we should send the next SyncNextMessage command. */
@@ -95,6 +96,7 @@ class MeshCoreBridge
         while ($this->running) {
             try {
                 $this->serial->open();
+                $this->startupAdvertSent = false;
                 $this->log(sprintf('Connected on %s', $this->serial->getDevice()));
                 $bootDelay = (float)($this->config['post_open_delay_seconds'] ?? 0.0);
                 if ($bootDelay > 0.0) {
@@ -223,6 +225,7 @@ class MeshCoreBridge
         $selfInfo = $this->waitForFrame(Packet::RESP_SELF_INFO, $timeout);
         if ($selfInfo !== null) {
             $this->logSelfInfo($selfInfo);
+            $this->sendStartupAdvert();
         } else {
             $this->log('Warning: no SelfInfo within handshake timeout; will log if it arrives later.');
         }
@@ -292,6 +295,7 @@ class MeshCoreBridge
 
             case 'self_info':
                 $this->logSelfInfo($packet);
+                $this->sendStartupAdvert();
                 break;
         }
     }
@@ -400,6 +404,10 @@ class MeshCoreBridge
 
         foreach (array_keys($this->lastCommandTime) as $nodeId) {
             $messages = $this->api->getPending($nodeId);
+            $err = $this->api->getLastError();
+            if ($err !== null && $err !== '') {
+                $this->log('bbs error: ' . $err);
+            }
             foreach ($messages as $msg) {
                 $this->sendResponse($nodeId, $msg['payload']);
             }
@@ -423,6 +431,21 @@ class MeshCoreBridge
             $this->lastFloodAdvert = $now;
             $this->log('advert: flood sent');
         }
+    }
+
+    private function sendStartupAdvert(): void
+    {
+        if ($this->startupAdvertSent) {
+            return;
+        }
+
+        $this->serial->writeFrame(Packet::sendAdvert(false));
+        $this->serial->writeFrame(Packet::sendAdvert(true));
+        $this->startupAdvertSent = true;
+        $now = time();
+        $this->lastZeroHopAdvert = $now;
+        $this->lastFloodAdvert = $now;
+        $this->log('advert: startup zero-hop and flood sent');
     }
 
     /**

@@ -145,8 +145,8 @@ Startup:
 2. Send MeshCore `DeviceQuery`.
 3. Wait for `DeviceInfo`.
 4. Send `AppStart`.
-5. Wait for `SelfInfo`.
-6. Register the bridge node ID with the BBS API client.
+5. Wait for `SelfInfo` and register the bridge node ID with the BBS API client.
+6. Send zero-hop and flooded MeshCore adverts.
 
 Inbound radio-to-BBS flow:
 
