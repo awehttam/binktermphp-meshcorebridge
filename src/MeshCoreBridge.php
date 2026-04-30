@@ -46,6 +46,8 @@ class MeshCoreBridge
 
     /** pub_key_hex => unix timestamp of last command, for rate limiting. */
     private array $lastCommandTime = [];
+    /** @var string[] node IDs configured for outbound pending-message polling. */
+    private array $pollNodeIds = [];
 
     /** @var resource|null */
     private $stdin = null;
@@ -63,6 +65,7 @@ class MeshCoreBridge
             $config['api_key'],
             (int)($config['http_timeout'] ?? 15)
         );
+        $this->pollNodeIds = $this->normalizePollNodeIds($config['poll_node_ids'] ?? []);
 
         if (defined('STDIN')) {
             $this->stdin = STDIN;
@@ -402,7 +405,7 @@ class MeshCoreBridge
         }
         $this->lastPollTime = time();
 
-        foreach (array_keys($this->lastCommandTime) as $nodeId) {
+        foreach ($this->getPendingPollNodeIds() as $nodeId) {
             $messages = $this->api->getPending($nodeId);
             $err = $this->api->getLastError();
             if ($err !== null && $err !== '') {
@@ -412,6 +415,43 @@ class MeshCoreBridge
                 $this->sendResponse($nodeId, $msg['payload']);
             }
         }
+    }
+
+    /**
+     * @param mixed $value
+     * @return string[]
+     */
+    private function normalizePollNodeIds($value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $nodeIds = [];
+        foreach ($value as $nodeId) {
+            if (!is_string($nodeId)) {
+                continue;
+            }
+            $nodeId = strtolower(trim($nodeId));
+            if (!preg_match('/^[0-9a-f]{12}$/', $nodeId)) {
+                $this->log(sprintf('config warning: ignoring invalid poll_node_ids entry "%s"', $nodeId));
+                continue;
+            }
+            $nodeIds[$nodeId] = true;
+        }
+
+        return array_keys($nodeIds);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getPendingPollNodeIds(): array
+    {
+        return array_values(array_unique(array_merge(
+            $this->pollNodeIds,
+            array_keys($this->lastCommandTime)
+        )));
     }
 
     private function sendAdverts(): void

@@ -16,6 +16,7 @@
     "reconnect_delay_seconds": 5,
 
     "poll_interval_seconds": 30,
+    "poll_node_ids": [],
 
     "advert_zero_hop_interval_seconds": 0,
     "advert_flood_interval_seconds": 0,

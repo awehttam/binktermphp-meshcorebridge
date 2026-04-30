@@ -62,6 +62,7 @@ Example:
     "handshake_timeout_seconds": 30,
     "reconnect_delay_seconds": 5,
     "poll_interval_seconds": 30,
+    "poll_node_ids": [],
     "advert_zero_hop_interval_seconds": 0,
     "advert_flood_interval_seconds": 0,
     "http_timeout": 15
@@ -84,6 +85,7 @@ Common keys:
 | `handshake_timeout_seconds` | No | Time to wait for MeshCore device and self info during startup. Defaults to `30`. |
 | `reconnect_delay_seconds` | No | Delay before reopening the serial port after an error. Defaults to `5`. |
 | `poll_interval_seconds` | No | How often to poll the BBS for pending outbound messages. Defaults to `30`. |
+| `poll_node_ids` | No | Node IDs to poll for pending outbound messages even before those users contact this bridge process. Defaults to an empty list. |
 | `advert_zero_hop_interval_seconds` | No | Automatic local advert interval. `0` disables scheduled zero-hop adverts. |
 | `advert_flood_interval_seconds` | No | Automatic flooded advert interval. `0` disables scheduled flood adverts. |
 | `http_timeout` | No | HTTP request timeout in seconds. Defaults to `15`. |
@@ -170,7 +172,7 @@ also be added manually to allow reception from specific remote nodes.
 
 Outbound BBS-to-radio flow:
 
-1. The bridge remembers nodes that have recently contacted it.
+1. The bridge remembers nodes that have recently contacted it and also uses any configured `poll_node_ids`.
 2. Every `poll_interval_seconds`, it calls:
 
    ```text
