@@ -108,6 +108,7 @@ class MeshCoreBridge
                     $this->log('Boot delay complete, starting handshake.');
                 }
                 $this->handshake();
+                $this->verifyBbs();
                 $this->mainLoop();
             } catch (\RuntimeException $e) {
                 $this->log('Serial error: ' . $e->getMessage());
@@ -255,6 +256,31 @@ class MeshCoreBridge
             usleep(10000); // 10 ms
         }
         return null;
+    }
+
+    private function verifyBbs(): void
+    {
+        $this->log('BBS verify: checking /api/verify');
+        $response = $this->api->verify();
+        if ($response === null) {
+            $err = $this->api->getLastError();
+            $this->log('BBS verify failed' . (($err !== null && $err !== '') ? ': ' . $err : ''));
+            return;
+        }
+
+        $decoded = json_decode($response, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $pretty = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if ($pretty !== false) {
+                foreach (explode("\n", $pretty) as $line) {
+                    $this->log('BBS verify: ' . $line);
+                }
+                return;
+            }
+        }
+
+        $response = trim($response);
+        $this->log('BBS verify: ' . ($response !== '' ? $response : '(empty response)'));
     }
 
     // -------------------------------------------------------------------------

@@ -8,6 +8,7 @@ The bridge connects to a MeshCore device over USB serial, receives direct messag
 
 - Uses the MeshCore binary companion protocol over USB/UART.
 - Forwards MeshCore direct messages to `POST /api/packetbbs/command`.
+- Verifies BBS API connectivity with `GET /api/verify` during startup.
 - Polls `GET /api/packetbbs/pending` for queued outbound BBS messages.
 - Sends long BBS responses as numbered text chunks.
 - Reconnects automatically if the serial port is disconnected.
@@ -149,6 +150,7 @@ Startup:
 4. Send `AppStart`.
 5. Wait for `SelfInfo` and register the bridge node ID with the BBS API client.
 6. Send zero-hop and flooded MeshCore adverts.
+7. Call `GET /api/verify` and display the returned BBS information.
 
 Inbound radio-to-BBS flow:
 
@@ -231,6 +233,10 @@ On Windows, enable `ffi` in `php.ini`.
 `ERROR: Could not reach BBS`
 
 Check `bbs_url`, `api_key`, TLS certificate validity, network connectivity, and the BBS packet API routes.
+
+`BBS verify failed`
+
+Check that `<bbs_url>/api/verify` is reachable from the bridge host and accepts the configured API key.
 
 No replies on the radio:
 

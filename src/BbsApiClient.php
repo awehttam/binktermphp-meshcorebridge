@@ -17,6 +17,8 @@ class BbsApiClient
     /** Timeout for HTTP requests in seconds */
     private int $timeout;
     private ?string $lastError = null;
+    /** @var string[] */
+    private array $lastResponseHeaders = [];
 
     public function __construct(string $bbsUrl, string $apiKey, int $timeout = 15)
     {
@@ -71,6 +73,14 @@ class BbsApiClient
         return is_array($data['messages'] ?? null) ? $data['messages'] : [];
     }
 
+    /**
+     * Verify the BBS API connection and return the endpoint response body.
+     */
+    public function verify(): ?string
+    {
+        return $this->get($this->bbsUrl . '/api/verify');
+    }
+
     public function getLastError(): ?string
     {
         return $this->lastError;
@@ -115,7 +125,7 @@ class BbsApiClient
         }
 
         // Check HTTP status from response headers
-        $status = $this->parseStatusCode($http_response_header ?? []);
+        $status = $this->parseStatusCode($this->lastResponseHeaders);
         if ($status !== null && $status >= 400) {
             // Infrastructure error - don't relay to radio user
             $this->lastError = sprintf('HTTP %d from %s', $status, $url);
@@ -148,7 +158,7 @@ class BbsApiClient
             return null;
         }
 
-        $status = $this->parseStatusCode($http_response_header ?? []);
+        $status = $this->parseStatusCode($this->lastResponseHeaders);
         if ($status !== null && $status >= 400) {
             $this->lastError = sprintf('HTTP %d from %s', $status, $url);
             return null;
@@ -163,6 +173,7 @@ class BbsApiClient
     private function fetchUrl(string $url, $context)
     {
         $error = null;
+        $this->lastResponseHeaders = [];
         set_error_handler(static function (int $severity, string $message) use (&$error): bool {
             $error = $message;
             return true;
@@ -170,6 +181,7 @@ class BbsApiClient
 
         try {
             $result = file_get_contents($url, false, $context);
+            $this->lastResponseHeaders = $http_response_header ?? [];
         } finally {
             restore_error_handler();
         }
