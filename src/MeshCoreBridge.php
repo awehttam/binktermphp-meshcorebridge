@@ -48,6 +48,8 @@ class MeshCoreBridge
     private array $lastCommandTime = [];
     /** @var string[] node IDs configured for outbound pending-message polling. */
     private array $pollNodeIds = [];
+    /** @var array<int,array<string,mixed>> adverts received before bridge auth is ready. */
+    private array $queuedAdvertPackets = [];
 
     /** @var resource|null */
     private $stdin = null;
@@ -229,6 +231,7 @@ class MeshCoreBridge
         $selfInfo = $this->waitForFrame(Packet::RESP_SELF_INFO, $timeout);
         if ($selfInfo !== null) {
             $this->logSelfInfo($selfInfo);
+            $this->flushQueuedAdvertPackets();
             $this->sendStartupAdvert();
         } else {
             $this->log('Warning: no SelfInfo within handshake timeout; will log if it arrives later.');
@@ -251,6 +254,9 @@ class MeshCoreBridge
                 $packet = Packet::decode($payload);
                 if (($packet['code'] ?? -1) === $expectedCode) {
                     return $packet;
+                }
+                if (in_array($packet['type'] ?? '', ['contact', 'new_advert'], true)) {
+                    $this->queuedAdvertPackets[] = $packet;
                 }
             }
             usleep(10000); // 10 ms
@@ -313,6 +319,11 @@ class MeshCoreBridge
                 $this->syncPending    = true;
                 break;
 
+            case 'new_advert':
+            case 'contact':
+                $this->maybeReportAdvert($packet);
+                break;
+
             case 'no_more_msgs':
                 $this->waitingForSync = false;
                 $this->syncPending    = false;
@@ -324,8 +335,67 @@ class MeshCoreBridge
 
             case 'self_info':
                 $this->logSelfInfo($packet);
+                $this->flushQueuedAdvertPackets();
                 $this->sendStartupAdvert();
                 break;
+        }
+    }
+
+    private function maybeReportAdvert(array $packet): void
+    {
+        if (($packet['adv_type_name'] ?? '') !== 'repeater') {
+            return;
+        }
+
+        if (isset($packet['has_location']) && !$packet['has_location']) {
+            return;
+        }
+
+        $lat = (float)($packet['adv_lat_deg'] ?? 0.0);
+        $lon = (float)($packet['adv_lon_deg'] ?? 0.0);
+
+        if ($lat === 0.0 && $lon === 0.0) {
+            return;
+        }
+
+        if ($lat < -90.0 || $lat > 90.0 || $lon < -180.0 || $lon > 180.0) {
+            return;
+        }
+
+        $pubKey = (string)($packet['pub_key_hex'] ?? '');
+        if (!preg_match('/^[0-9a-f]{64}$/', $pubKey)) {
+            return;
+        }
+
+        $ok = $this->api->reportAdvert([
+            'pub_key_hex'   => $pubKey,
+            'name'          => (string)($packet['adv_name'] ?? ''),
+            'adv_type'      => (string)($packet['adv_type_name'] ?? ''),
+            'latitude'      => $lat,
+            'longitude'     => $lon,
+            'hop_count'     => (int)($packet['out_path_len'] ?? 0),
+            'timestamp_iso' => (string)($packet['lastmod_iso'] ?? $packet['last_advert_iso'] ?? gmdate('c')),
+        ]);
+
+        if (!$ok && !empty($this->config['debug'])) {
+            $this->log(sprintf(
+                'advert report failed for %s: %s',
+                substr($pubKey, 0, 12),
+                $this->api->getLastError() ?? 'unknown error'
+            ));
+        }
+    }
+
+    private function flushQueuedAdvertPackets(): void
+    {
+        if ($this->queuedAdvertPackets === []) {
+            return;
+        }
+
+        $packets = $this->queuedAdvertPackets;
+        $this->queuedAdvertPackets = [];
+        foreach ($packets as $packet) {
+            $this->maybeReportAdvert($packet);
         }
     }
 

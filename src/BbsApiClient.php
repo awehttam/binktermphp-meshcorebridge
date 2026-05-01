@@ -74,6 +74,31 @@ class BbsApiClient
     }
 
     /**
+     * Report a MeshCore node advertisement to the BBS CWN mapper.
+     *
+     * @param array{
+     *     pub_key_hex: string,
+     *     name: string,
+     *     adv_type: string,
+     *     latitude: float,
+     *     longitude: float,
+     *     hop_count: int,
+     *     timestamp_iso: string
+     * } $data
+     */
+    public function reportAdvert(array $data): bool
+    {
+        $data['bridge_node_id'] = $this->bridgeNodeId ?? '';
+        $payload = json_encode($data);
+        if ($payload === false) {
+            $this->lastError = 'Could not encode advert report payload.';
+            return false;
+        }
+
+        return $this->post('/api/meshcore/advert', $payload) !== null;
+    }
+
+    /**
      * Verify the BBS API connection and return the endpoint response body.
      */
     public function verify(): ?string
