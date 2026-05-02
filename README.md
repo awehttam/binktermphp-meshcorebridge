@@ -4,6 +4,8 @@ Serial companion bridge between a MeshCore node and the binkterm-php packet BBS 
 
 The bridge connects to a MeshCore device over USB serial, receives direct messages from radio users, sends each message as a command to the BBS API, and relays the plain-text BBS response back to the originating MeshCore node.
 
+MeshCore requires a contact record for a remote node before messages from that node will pass through to the bridge. The device can be configured to auto-add users based on adverts; when another node advertises itself, the local MeshCore node adds the contact and will then accept messages from that remote user. Contacts can also be added manually to allow reception from specific remote nodes.
+
 ## Features
 
 - Uses the MeshCore binary companion protocol over USB/UART.
@@ -130,8 +132,16 @@ Enable decoded packet trace logging:
 php bridge.php --trace
 ```
 
+Run as a background daemon (Linux/Unix only; requires the `pcntl` and `posix` PHP extensions):
+
+```sh
+php bridge.php --daemon --pid-file=/var/run/bridge.pid --log-file=/var/log/bridge.log
+```
+
+`--pid-file` and `--log-file` are optional. Output is discarded when `--log-file` is omitted. The PID file is removed automatically when the bridge stops.
+
 Runtime console commands are available only when the bridge can poll STDIN in
-non-blocking mode. They are disabled for Windows TTY sessions.
+non-blocking mode. They are disabled for Windows TTY sessions and when running as a daemon.
 
 | Command | Description |
 | --- | --- |
@@ -183,12 +193,6 @@ Pong! | path: 2 hops | SNR: +4.50 dB
 ```
 
 SNR is only available when the MeshCore node uses the V3 companion protocol; older firmware reports `n/a`.
-
-MeshCore requires a contact record for a remote node before messages from that node
-will pass through to the bridge. The device can be configured to auto-add users
-based on adverts; when another node advertises itself, the local MeshCore node
-adds the contact and will then accept messages from that remote user. Contacts can
-also be added manually to allow reception from specific remote nodes.
 
 Outbound BBS-to-radio flow:
 
