@@ -155,11 +155,13 @@ class Packet
             return ['type' => 'contact_msg', 'code' => $code, 'error' => 'truncated'];
         }
 
+        $pathRaw = ord($data[6]);
         return [
             'type'        => 'contact_msg',
             'code'        => $code,
             'pub_key_hex' => bin2hex(substr($data, 0, 6)),
-            'hops'        => ord($data[6]) & 0x3F,
+            'hops'        => $pathRaw === 0xFF ? 0 : ($pathRaw & 0x3F),
+            'is_direct'   => $pathRaw === 0xFF,
             'txt_type'    => ord($data[7]),
             'timestamp'   => unpack('V', substr($data, 8, 4))[1],
             'text'        => rtrim(substr($data, 12), "\x00"),
@@ -193,12 +195,14 @@ class Packet
             return ['type' => 'contact_msg', 'code' => $code, 'error' => 'truncated'];
         }
 
+        $pathRaw = ord($data[9]);
         return [
             'type'        => 'contact_msg',
             'code'        => $code,
             'snr'         => self::decodeSnr(ord($data[0])),
             'pub_key_hex' => bin2hex(substr($data, 3, 6)),
-            'hops'        => ord($data[9]) & 0x3F,
+            'hops'        => $pathRaw === 0xFF ? 0 : ($pathRaw & 0x3F),
+            'is_direct'   => $pathRaw === 0xFF,
             'txt_type'    => ord($data[10]),
             'timestamp'   => unpack('V', substr($data, 11, 4))[1],
             'text'        => rtrim(substr($data, 15), "\x00"),

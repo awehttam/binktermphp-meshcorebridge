@@ -453,7 +453,9 @@ class MeshCoreBridge
     private function handleLocalCommand(string $command, array $packet): ?string
     {
         $hops = (int)($packet['hops'] ?? 0);
-        $path = $hops === 0 ? 'direct' : sprintf('%d hop%s', $hops, $hops === 1 ? '' : 's');
+        $path = ($packet['is_direct'] ?? false)
+            ? 'direct'
+            : ($hops === 0 ? '0 hops' : sprintf('%d hop%s', $hops, $hops === 1 ? '' : 's'));
         $snr  = isset($packet['snr'])
             ? sprintf('%+.2f dB', $packet['snr'])
             : 'n/a';
