@@ -156,8 +156,8 @@ Inbound radio-to-BBS flow:
 
 1. MeshCore reports `MsgWaiting`, or the bridge probes for queued messages.
 2. The bridge sends `SyncNextMessage` until MeshCore reports `NoMoreMessages`.
-3. Each direct contact message is treated as a BBS command.
-4. The bridge sends the command to:
+3. Each direct contact message is checked against the local command table (see below).
+4. Unrecognised commands are forwarded to the BBS:
 
    ```text
    POST /api/packetbbs/command
@@ -165,6 +165,24 @@ Inbound radio-to-BBS flow:
    ```
 
 5. The plain-text API response is sent back as a MeshCore direct message.
+
+### Local bridge commands
+
+The following commands are handled directly by the bridge without a BBS round-trip:
+
+| Command | Alias | Response |
+| --- | --- | --- |
+| `test` | `t` | Path (relay count or `direct`) and SNR of the received message. |
+| `ping` | — | `Pong!` with the same path and SNR information. |
+
+Example responses:
+
+```
+Test OK | path: direct | SNR: +7.25 dB
+Pong! | path: 2 hops | SNR: +4.50 dB
+```
+
+SNR is only available when the MeshCore node uses the V3 companion protocol; older firmware reports `n/a`.
 
 MeshCore requires a contact record for a remote node before messages from that node
 will pass through to the bridge. The device can be configured to auto-add users
