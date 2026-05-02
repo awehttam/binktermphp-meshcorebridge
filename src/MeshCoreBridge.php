@@ -416,9 +416,15 @@ class MeshCoreBridge
         }
         $this->lastCommandTime[$nodeId] = $now;
 
-        $interface = (string)($this->config['interface'] ?? 'meshcore');
         $this->log(sprintf('cmd node=%s hops=%d: %s', $nodeId, $packet['hops'], $command));
 
+        $localResponse = $this->handleLocalCommand($command, $packet);
+        if ($localResponse !== null) {
+            $this->sendResponse($nodeId, $localResponse);
+            return;
+        }
+
+        $interface = (string)($this->config['interface'] ?? 'meshcore');
         $response = $this->api->sendCommand($nodeId, $interface, $command);
         if (str_starts_with($response, 'ERROR:')) {
             $detail = $this->api->getLastError();
@@ -434,6 +440,35 @@ class MeshCoreBridge
             $this->log('bbs error: empty response body');
         }
         $this->sendResponse($nodeId, $response);
+    }
+
+    /**
+     * Handle commands answered locally by the bridge (no BBS round-trip).
+     *
+     * Returns the response string to send back, or null if the command is not
+     * a local one and should be forwarded to the BBS.
+     *
+     * @param array<string,mixed> $packet
+     */
+    private function handleLocalCommand(string $command, array $packet): ?string
+    {
+        $hops = (int)($packet['hops'] ?? 0);
+        $path = $hops === 0 ? 'direct' : sprintf('%d hop%s', $hops, $hops === 1 ? '' : 's');
+        $snr  = isset($packet['snr'])
+            ? sprintf('%+.2f dB', $packet['snr'])
+            : 'n/a';
+
+        switch (strtolower($command)) {
+            case 'test':
+            case 't':
+                return sprintf('Test OK | path: %s | SNR: %s', $path, $snr);
+
+            case 'ping':
+                return sprintf('Pong! | path: %s | SNR: %s', $path, $snr);
+
+            default:
+                return null;
+        }
     }
 
     private function pollConsoleInput(): void
