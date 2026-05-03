@@ -613,9 +613,14 @@ class MeshCoreBridge
                 $this->log(sprintf('console: trace mode %s', $this->config['trace'] ? 'enabled' : 'disabled'));
                 break;
 
+            case 'lh':
+            case 'lastheard':
+                $this->log($this->lastHeardResponse());
+                break;
+
             case 'help':
             case '?':
-                $this->log('console commands: advert|a, flood|af, debug, trace, help|?, quit|exit');
+                $this->log('console commands: advert|a, flood|af, debug, trace, lh|lastheard, help|?, quit|exit');
                 break;
 
             case 'quit':
