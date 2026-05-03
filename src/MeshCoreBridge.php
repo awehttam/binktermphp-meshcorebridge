@@ -46,6 +46,8 @@ class MeshCoreBridge
 
     /** pub_key_hex => unix timestamp of last command, for rate limiting. */
     private array $lastCommandTime = [];
+    /** nodeId12 => ['name','time','snr','hops','direct'] — recently heard nodes. */
+    private array $heardNodes = [];
     /** @var string[] node IDs configured for outbound pending-message polling. */
     private array $pollNodeIds = [];
     /** @var array<int,array<string,mixed>> adverts received before bridge auth is ready. */
@@ -307,6 +309,7 @@ class MeshCoreBridge
                 break;
 
             case 'contact_msg':
+                $this->recordHeard($packet);
                 $this->handleContactMsg($packet);
                 // There may be more queued messages; keep draining.
                 $this->waitingForSync = false;
@@ -320,7 +323,12 @@ class MeshCoreBridge
                 break;
 
             case 'new_advert':
+                $this->recordHeard($packet);
+                $this->maybeReportAdvert($packet);
+                break;
+
             case 'contact':
+                $this->recordHeard($packet);
                 $this->maybeReportAdvert($packet);
                 break;
 
@@ -452,6 +460,10 @@ class MeshCoreBridge
      */
     private function handleLocalCommand(string $command, array $packet): ?string
     {
+        if (!str_starts_with($command, '!')) {
+            return null;
+        }
+
         $hops = (int)($packet['hops'] ?? 0);
         $path = ($packet['is_direct'] ?? false)
             ? 'direct'
@@ -460,7 +472,7 @@ class MeshCoreBridge
             ? sprintf('%+.2f dB', $packet['snr'])
             : 'n/a';
 
-        switch (strtolower($command)) {
+        switch (strtolower(substr($command, 1))) {
             case 'test':
             case 't':
                 return sprintf('Test OK | path: %s | SNR: %s', $path, $snr);
@@ -468,9 +480,91 @@ class MeshCoreBridge
             case 'ping':
                 return sprintf('Pong! | path: %s | SNR: %s', $path, $snr);
 
+            case 'lh':
+            case 'lastheard':
+                return $this->lastHeardResponse();
+
             default:
                 return null;
         }
+    }
+
+    private function recordHeard(array $packet): void
+    {
+        $type = $packet['type'] ?? '';
+
+        if ($type === 'contact_msg') {
+            $nodeId    = (string)($packet['pub_key_hex'] ?? '');
+            $name      = '';
+            $snr       = isset($packet['snr']) ? (float)$packet['snr'] : null;
+            $hops      = (int)($packet['hops'] ?? 0);
+            $direct    = (bool)($packet['is_direct'] ?? false);
+            $heardTime = time();
+        } elseif ($type === 'new_advert' || $type === 'contact') {
+            $nodeId = substr((string)($packet['pub_key_hex'] ?? ''), 0, 12);
+            $name   = (string)($packet['adv_name'] ?? '');
+            $snr    = null;
+            $hops   = (int)($packet['out_path_len'] ?? 0);
+            $direct = ($hops === 0);
+            // For stored contacts use the radio's last_advert timestamp; for
+            // real-time pushes use now.
+            $heardTime = $type === 'contact'
+                ? (int)($packet['last_advert'] ?? time())
+                : time();
+        } else {
+            return;
+        }
+
+        if ($nodeId === '') {
+            return;
+        }
+
+        $existing     = $this->heardNodes[$nodeId] ?? [];
+        $existingName = $existing['name'] ?? '';
+        $existingTime = $existing['time'] ?? 0;
+        $this->heardNodes[$nodeId] = [
+            'name'   => $name !== '' ? $name : $existingName,
+            'time'   => max($heardTime, $existingTime),
+            'snr'    => $snr ?? ($existing['snr'] ?? null),
+            'hops'   => $hops,
+            'direct' => $direct,
+        ];
+    }
+
+    private function lastHeardResponse(): string
+    {
+        if ($this->heardNodes === []) {
+            return 'No nodes heard yet.';
+        }
+
+        $nodes = $this->heardNodes;
+        uasort($nodes, static fn($a, $b) => $b['time'] <=> $a['time']);
+
+        $now   = time();
+        $lines = ['Last heard (' . count($nodes) . '):'];
+        $count = 0;
+
+        foreach ($nodes as $nodeId => $info) {
+            if (++$count > 10) {
+                break;
+            }
+            $age = $now - $info['time'];
+            if ($age < 60) {
+                $ageStr = $age . 's ago';
+            } elseif ($age < 3600) {
+                $ageStr = (int)($age / 60) . 'm ago';
+            } else {
+                $ageStr = (int)($age / 3600) . 'h ago';
+            }
+            $pathStr = $info['direct']
+                ? 'direct'
+                : sprintf('%d hop%s', $info['hops'], $info['hops'] === 1 ? '' : 's');
+            $snrStr  = $info['snr'] !== null ? sprintf(' SNR:%+.1f', $info['snr']) : '';
+            $nameStr = $info['name'] !== '' ? ' "' . $info['name'] . '"' : '';
+            $lines[] = $nodeId . $nameStr . ' ' . $pathStr . $snrStr . ' ' . $ageStr;
+        }
+
+        return implode("\n", $lines);
     }
 
     private function pollConsoleInput(): void
@@ -509,9 +603,19 @@ class MeshCoreBridge
                 $this->log('console: flood advert sent');
                 break;
 
+            case 'debug':
+                $this->config['debug'] = !($this->config['debug'] ?? false);
+                $this->log(sprintf('console: debug mode %s', $this->config['debug'] ? 'enabled' : 'disabled'));
+                break;
+
+            case 'trace':
+                $this->config['trace'] = !($this->config['trace'] ?? false);
+                $this->log(sprintf('console: trace mode %s', $this->config['trace'] ? 'enabled' : 'disabled'));
+                break;
+
             case 'help':
             case '?':
-                $this->log('console commands: advert|a, flood|af, help|?, quit|exit');
+                $this->log('console commands: advert|a, flood|af, debug, trace, help|?, quit|exit');
                 break;
 
             case 'quit':
