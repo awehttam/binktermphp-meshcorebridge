@@ -755,7 +755,7 @@ class MeshCoreBridge
                 $chunks[] = $chunk;
                 $chunk    = '';
             }
-            $chunk .= ($chunk !== '' ? ' | ' : '') . $line;
+            $chunk .= ($chunk !== '' ? "\n" : '') . $line;
         }
         if ($chunk !== '') {
             $chunks[] = $chunk;
