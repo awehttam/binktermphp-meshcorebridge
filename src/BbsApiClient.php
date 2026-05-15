@@ -40,7 +40,7 @@ class BbsApiClient
             'bridge_node_id' => $this->bridgeNodeId,
             'interface'      => $interface,
             'command'        => $command,
-        ]);
+        ], JSON_INVALID_UTF8_SUBSTITUTE);
 
         $response = $this->post('/api/packetbbs/command', $payload);
         if ($response === null) {
@@ -89,7 +89,7 @@ class BbsApiClient
     public function reportAdvert(array $data): bool
     {
         $data['bridge_node_id'] = $this->bridgeNodeId ?? '';
-        $payload = json_encode($data);
+        $payload = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE);
         if ($payload === false) {
             $this->lastError = 'Could not encode advert report payload.';
             return false;
@@ -112,7 +112,7 @@ class BbsApiClient
     public function reportContact(array $data): bool
     {
         $data['bridge_node_id'] = $this->bridgeNodeId ?? '';
-        $payload = json_encode($data);
+        $payload = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE);
         if ($payload === false) {
             $this->lastError = 'Could not encode contact report payload.';
             return false;
