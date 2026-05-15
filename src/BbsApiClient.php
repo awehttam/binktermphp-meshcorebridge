@@ -99,6 +99,58 @@ class BbsApiClient
     }
 
     /**
+     * Report a MeshCore companion contact to the BBS contact store.
+     *
+     * @param array{
+     *     pub_key_hex: string,
+     *     name: string,
+     *     adv_type: string,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * } $data
+     */
+    public function reportContact(array $data): bool
+    {
+        $data['bridge_node_id'] = $this->bridgeNodeId ?? '';
+        $payload = json_encode($data);
+        if ($payload === false) {
+            $this->lastError = 'Could not encode contact report payload.';
+            return false;
+        }
+
+        return $this->post('/api/meshcore/contact', $payload) !== null;
+    }
+
+    /**
+     * Poll for device commands queued for this bridge node (e.g. remove_contact).
+     *
+     * @return array<int,array{id:int,command_type:string,payload:array<string,mixed>}>
+     */
+    public function getPendingDeviceCommands(): array
+    {
+        if ($this->bridgeNodeId === null) {
+            return [];
+        }
+        $url = $this->bbsUrl . '/api/meshcore/pending-commands?bridge_node_id='
+             . urlencode($this->bridgeNodeId);
+        $raw = $this->get($url);
+        if ($raw === null) {
+            return [];
+        }
+        $data = json_decode($raw, true);
+        return is_array($data['commands'] ?? null) ? $data['commands'] : [];
+    }
+
+    /**
+     * Acknowledge that a device command has been sent to the radio.
+     */
+    public function ackDeviceCommand(int $id): bool
+    {
+        $payload = json_encode(['bridge_node_id' => $this->bridgeNodeId ?? '']);
+        return $this->post("/api/meshcore/commands/{$id}/ack", $payload) !== null;
+    }
+
+    /**
      * Verify the BBS API connection and return the endpoint response body.
      */
     public function verify(): ?string

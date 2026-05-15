@@ -17,6 +17,9 @@ class Packet
     const CMD_APP_START        = 1;
     const CMD_SEND_TXT_MSG     = 2;
     const CMD_SEND_CHANNEL_MSG = 3;
+    const CMD_GET_CONTACTS          = 4;
+    const CMD_ADD_UPDATE_CONTACT    = 9;
+    const CMD_REMOVE_CONTACT        = 0x0F;
     const CMD_SEND_ADVERT      = 7;
     const CMD_SYNC_NEXT_MSG    = 10;
     const CMD_DEVICE_QUERY     = 22;
@@ -65,6 +68,73 @@ class Packet
              . chr(1)                 // appVer
              . str_repeat("\x00", 6) // reserved
              . $appName;
+    }
+
+    /**
+     * Request the device's contact list.
+     *
+     * @param int $sinceTimestamp  Only return contacts modified after this Unix
+     *                             timestamp. Pass 0 (default) to get all contacts.
+     */
+    public static function getContacts(int $sinceTimestamp = 0): string
+    {
+        $cmd = chr(self::CMD_GET_CONTACTS);
+        if ($sinceTimestamp > 0) {
+            $cmd .= pack('V', $sinceTimestamp);
+        }
+        return $cmd;
+    }
+
+    /**
+     * Add or update a contact on the device.
+     *
+     * Sends CMD_ADD_UPDATE_CONTACT (0x09). The device creates the contact if
+     * the public key is unknown, or updates the existing record if it already
+     * exists. out_path_len is set to OUT_PATH_UNKNOWN (0xFF) so the device
+     * will route via flood until it hears an advert from the contact.
+     *
+     * @param string     $pubKeyHex  64-character lowercase hex public key.
+     * @param string     $name       Display name (truncated to 31 chars, null-padded to 32).
+     * @param int        $advType    Advertisement type: 1=chat, 2=repeater, 3=room_server, 4=sensor.
+     * @param float|null $lat        GPS latitude in degrees, or null if unknown.
+     * @param float|null $lon        GPS longitude in degrees, or null if unknown.
+     */
+    public static function addUpdateContact(
+        string $pubKeyHex,
+        string $name    = '',
+        int    $advType = 1,
+        ?float $lat     = null,
+        ?float $lon     = null
+    ): string {
+        $pubKey  = hex2bin($pubKeyHex);
+        $namePad = str_pad(substr($name, 0, 31), 32, "\x00");
+        $outPath = str_repeat("\x00", 64); // MAX_PATH_SIZE, unknown
+
+        $frame = chr(self::CMD_ADD_UPDATE_CONTACT)
+               . $pubKey                 // 32 bytes: public key
+               . chr($advType)           // type
+               . chr(0)                  // flags
+               . chr(0xFF)              // out_path_len = OUT_PATH_UNKNOWN
+               . $outPath               // 64 bytes: out_path
+               . $namePad               // 32 bytes: name, null-padded
+               . pack('V', 0);          // last_advert_timestamp (uint32 LE)
+
+        if ($lat !== null && $lon !== null) {
+            $frame .= pack('l', (int)round($lat * 1e6))
+                   . pack('l', (int)round($lon * 1e6));
+        }
+
+        return $frame;
+    }
+
+    /**
+     * Remove a contact from the device by its 32-byte public key.
+     *
+     * @param string $pubKeyHex  64-character lowercase hex encoding of the 32-byte public key.
+     */
+    public static function removeContact(string $pubKeyHex): string
+    {
+        return chr(self::CMD_REMOVE_CONTACT) . hex2bin($pubKeyHex);
     }
 
     public static function syncNextMessage(): string

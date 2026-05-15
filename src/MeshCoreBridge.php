@@ -31,8 +31,9 @@ class MeshCoreBridge
     private BbsApiClient $api;
     private array $config;
 
-    private bool $running           = false;
-    private int  $lastPollTime      = 0;
+    private bool $running              = false;
+    private int  $lastPollTime         = 0;
+    private int  $lastCommandPollTime  = 0;
     private int  $lastZeroHopAdvert = 0;
     private int  $lastFloodAdvert   = 0;
     private bool $startupAdvertSent = false;
@@ -156,6 +157,7 @@ class MeshCoreBridge
 
             $this->pollConsoleInput();
             $this->pollPending();
+            $this->pollDeviceCommands();
             $this->sendAdverts();
 
             usleep(20000); // 20 ms
@@ -234,6 +236,8 @@ class MeshCoreBridge
         if ($selfInfo !== null) {
             $this->logSelfInfo($selfInfo);
             $this->flushQueuedAdvertPackets();
+            $this->serial->writeFrame(Packet::getContacts());
+            $this->log('contacts: requesting contact list from radio');
             $this->sendStartupAdvert();
         } else {
             $this->log('Warning: no SelfInfo within handshake timeout; will log if it arrives later.');
@@ -330,6 +334,7 @@ class MeshCoreBridge
             case 'contact':
                 $this->recordHeard($packet);
                 $this->maybeReportAdvert($packet);
+                $this->maybeReportContact($packet);
                 break;
 
             case 'no_more_msgs':
@@ -394,6 +399,40 @@ class MeshCoreBridge
         }
     }
 
+    private function maybeReportContact(array $packet): void
+    {
+        // Only sync companion (chat) contacts — repeaters, room servers, and sensors
+        // are infrastructure nodes, not message-capable companions.
+        if (($packet['adv_type_name'] ?? '') !== 'chat') {
+            return;
+        }
+
+        $pubKey = (string)($packet['pub_key_hex'] ?? '');
+        if (!preg_match('/^[0-9a-f]{64}$/', $pubKey)) {
+            return;
+        }
+
+        $hasLoc = (bool)($packet['has_location'] ?? false);
+        $lat    = $hasLoc ? (float)($packet['adv_lat_deg'] ?? 0.0) : null;
+        $lon    = $hasLoc ? (float)($packet['adv_lon_deg'] ?? 0.0) : null;
+
+        $ok = $this->api->reportContact([
+            'pub_key_hex' => $pubKey,
+            'name'        => (string)($packet['adv_name'] ?? ''),
+            'adv_type'    => (string)($packet['adv_type_name'] ?? ''),
+            'latitude'    => $lat,
+            'longitude'   => $lon,
+        ]);
+
+        if (!$ok && !empty($this->config['debug'])) {
+            $this->log(sprintf(
+                'contact report failed for %s: %s',
+                substr($pubKey, 0, 12),
+                $this->api->getLastError() ?? 'unknown error'
+            ));
+        }
+    }
+
     private function flushQueuedAdvertPackets(): void
     {
         if ($this->queuedAdvertPackets === []) {
@@ -404,6 +443,9 @@ class MeshCoreBridge
         $this->queuedAdvertPackets = [];
         foreach ($packets as $packet) {
             $this->maybeReportAdvert($packet);
+            if (($packet['type'] ?? '') === 'contact') {
+                $this->maybeReportContact($packet);
+            }
         }
     }
 
@@ -694,6 +736,88 @@ class MeshCoreBridge
             $this->pollNodeIds,
             array_keys($this->lastCommandTime)
         )));
+    }
+
+    private function pollDeviceCommands(): void
+    {
+        $interval = (int)($this->config['poll_interval_seconds'] ?? 30);
+        if ((time() - $this->lastCommandPollTime) < $interval) {
+            return;
+        }
+        $this->lastCommandPollTime = time();
+
+        $commands = $this->api->getPendingDeviceCommands();
+        $err = $this->api->getLastError();
+        if ($err !== null && $err !== '') {
+            $this->log('device commands error: ' . $err);
+        }
+        foreach ($commands as $cmd) {
+            $this->executeDeviceCommand($cmd);
+        }
+    }
+
+    private function executeDeviceCommand(array $cmd): void
+    {
+        $id      = (int)($cmd['id'] ?? 0);
+        $type    = (string)($cmd['command_type'] ?? '');
+        $payload = $cmd['payload'] ?? [];
+
+        switch ($type) {
+            case 'add_contact':
+                $pubKey  = (string)($payload['pub_key_full'] ?? '');
+                $name    = (string)($payload['name'] ?? '');
+                $advType = (int)($payload['adv_type'] ?? 1);
+                $lat     = isset($payload['lat']) ? (float)$payload['lat'] : null;
+                $lon     = isset($payload['lon']) ? (float)$payload['lon'] : null;
+                if (!preg_match('/^[0-9a-f]{64}$/', $pubKey)) {
+                    $this->log(sprintf('device cmd %d: invalid pub_key_full for add_contact', $id));
+                    break;
+                }
+                $this->log(sprintf(
+                    'device cmd %d: adding contact %s ("%s") to radio',
+                    $id,
+                    substr($pubKey, 0, 12),
+                    $name
+                ));
+                try {
+                    $this->serial->writeFrame(Packet::addUpdateContact($pubKey, $name, $advType, $lat, $lon));
+                } catch (\RuntimeException $e) {
+                    $this->log(sprintf('device cmd %d: write error: %s', $id, $e->getMessage()));
+                }
+                break;
+
+            case 'remove_contact':
+                $pubKey = (string)($payload['pub_key_full'] ?? '');
+                if (!preg_match('/^[0-9a-f]{64}$/', $pubKey)) {
+                    $this->log(sprintf('device cmd %d: invalid pub_key_full for remove_contact', $id));
+                    break;
+                }
+                $this->log(sprintf(
+                    'device cmd %d: removing contact %s from radio',
+                    $id,
+                    substr($pubKey, 0, 12)
+                ));
+                try {
+                    $this->serial->writeFrame(Packet::removeContact($pubKey));
+                } catch (\RuntimeException $e) {
+                    $this->log(sprintf('device cmd %d: write error: %s', $id, $e->getMessage()));
+                }
+                break;
+
+            default:
+                $this->log(sprintf('device cmd %d: unknown command type "%s"', $id, $type));
+                break;
+        }
+
+        // ACK regardless — "executed" means the command was dispatched to the radio.
+        if (!$this->api->ackDeviceCommand($id)) {
+            $err = $this->api->getLastError();
+            $this->log(sprintf(
+                'device cmd %d: ack failed%s',
+                $id,
+                $err ? ': ' . $err : ''
+            ));
+        }
     }
 
     private function sendAdverts(): void
