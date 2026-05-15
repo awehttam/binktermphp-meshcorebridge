@@ -14,15 +14,17 @@ namespace MeshCoreBridge;
 class Packet
 {
     // Commands (app → radio)
-    const CMD_APP_START        = 1;
-    const CMD_SEND_TXT_MSG     = 2;
-    const CMD_SEND_CHANNEL_MSG = 3;
+    const CMD_APP_START             = 1;
+    const CMD_SEND_TXT_MSG          = 2;
+    const CMD_SEND_CHANNEL_MSG      = 3;
     const CMD_GET_CONTACTS          = 4;
     const CMD_ADD_UPDATE_CONTACT    = 9;
     const CMD_REMOVE_CONTACT        = 0x0F;
-    const CMD_SEND_ADVERT      = 7;
-    const CMD_SYNC_NEXT_MSG    = 10;
-    const CMD_DEVICE_QUERY     = 22;
+    const CMD_SEND_ADVERT           = 7;
+    const CMD_SYNC_NEXT_MSG         = 10;
+    const CMD_DEVICE_QUERY          = 22;
+    const CMD_SET_AUTOADD_CONFIG    = 58;
+    const CMD_GET_AUTOADD_CONFIG    = 59;
 
     // Response codes (radio → app, first byte of payload)
     const RESP_OK              = 0;
@@ -39,6 +41,14 @@ class Packet
     const RESP_CHANNEL_MSG_V3  = 17;
     const RESP_DEVICE_INFO     = 13;
     const RESP_CHANNEL_INFO    = 18;
+    const RESP_AUTOADD_CONFIG  = 25;
+
+    // autoadd_config bitmask flags (used in CMD_SET_AUTOADD_CONFIG payload)
+    const AUTO_ADD_OVERWRITE_OLDEST = 0x01;
+    const AUTO_ADD_CHAT             = 0x02;
+    const AUTO_ADD_REPEATER         = 0x04;
+    const AUTO_ADD_ROOM_SERVER      = 0x08;
+    const AUTO_ADD_SENSOR           = 0x10;
 
     // Push codes — unsolicited (radio → app, first byte >= 0x80)
     const PUSH_ADVERT          = 0x80;
@@ -143,6 +153,29 @@ class Packet
     }
 
     /**
+     * Set the auto-add contact policy on the device.
+     *
+     * @param int      $configByte  Bitmask of AUTO_ADD_* constants.
+     * @param int|null $maxHops     Max hop count (0–64); omit to leave unchanged.
+     */
+    public static function setAutoAddConfig(int $configByte, ?int $maxHops = null): string
+    {
+        $frame = chr(self::CMD_SET_AUTOADD_CONFIG) . chr($configByte & 0xFF);
+        if ($maxHops !== null) {
+            $frame .= chr(min(64, max(0, $maxHops)));
+        }
+        return $frame;
+    }
+
+    /**
+     * Request the device's current auto-add config (responds with RESP_AUTOADD_CONFIG).
+     */
+    public static function getAutoAddConfig(): string
+    {
+        return chr(self::CMD_GET_AUTOADD_CONFIG);
+    }
+
+    /**
      * Send a self-advertisement.
      *
      * @param bool $flood  true = flood throughout the mesh; false = zero-hop (local only).
@@ -209,6 +242,13 @@ class Packet
             case self::PUSH_ADVERT:        return ['type' => 'advert',         'code' => $code, 'raw' => bin2hex($data)];
             case self::PUSH_LOG_DATA:      return self::decodeLogData($data, $code);
             case self::PUSH_NEW_ADVERT:    return self::decodeContactRecord($data, $code, 'new_advert');
+            case self::RESP_AUTOADD_CONFIG:
+                return [
+                    'type'        => 'autoadd_config',
+                    'code'        => $code,
+                    'config_byte' => strlen($data) >= 1 ? ord($data[0]) : 0,
+                    'max_hops'    => strlen($data) >= 2 ? ord($data[1]) : 0,
+                ];
             default:                       return ['type' => 'unknown',        'code' => $code, 'raw' => bin2hex($data)];
         }
     }

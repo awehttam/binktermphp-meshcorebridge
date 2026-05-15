@@ -351,6 +351,20 @@ class MeshCoreBridge
                 $this->flushQueuedAdvertPackets();
                 $this->sendStartupAdvert();
                 break;
+
+            case 'autoadd_config':
+                $configByte = (int)($packet['config_byte'] ?? 0);
+                $maxHops    = (int)($packet['max_hops'] ?? 0);
+                $this->log(sprintf(
+                    'autoadd config from device: 0x%02X (max_hops=%d)',
+                    $configByte,
+                    $maxHops
+                ));
+                if (!$this->api->updateAutoAddConfig($configByte, $maxHops)) {
+                    $err = $this->api->getLastError();
+                    $this->log('autoadd config report failed' . ($err ? ': ' . $err : ''));
+                }
+                break;
         }
     }
 
@@ -799,6 +813,35 @@ class MeshCoreBridge
                 ));
                 try {
                     $this->serial->writeFrame(Packet::removeContact($pubKey));
+                } catch (\RuntimeException $e) {
+                    $this->log(sprintf('device cmd %d: write error: %s', $id, $e->getMessage()));
+                }
+                break;
+
+            case 'set_autoadd_config':
+                $configByte = isset($payload['config_byte']) ? (int)$payload['config_byte'] : null;
+                if ($configByte === null) {
+                    $this->log(sprintf('device cmd %d: missing config_byte for set_autoadd_config', $id));
+                    break;
+                }
+                $maxHops = isset($payload['max_hops']) ? (int)$payload['max_hops'] : null;
+                $this->log(sprintf(
+                    'device cmd %d: setting autoadd config 0x%02X%s',
+                    $id,
+                    $configByte,
+                    $maxHops !== null ? sprintf(' max_hops=%d', $maxHops) : ''
+                ));
+                try {
+                    $this->serial->writeFrame(Packet::setAutoAddConfig($configByte, $maxHops));
+                } catch (\RuntimeException $e) {
+                    $this->log(sprintf('device cmd %d: write error: %s', $id, $e->getMessage()));
+                }
+                break;
+
+            case 'get_autoadd_config':
+                $this->log(sprintf('device cmd %d: reading autoadd config from device', $id));
+                try {
+                    $this->serial->writeFrame(Packet::getAutoAddConfig());
                 } catch (\RuntimeException $e) {
                     $this->log(sprintf('device cmd %d: write error: %s', $id, $e->getMessage()));
                 }

@@ -142,6 +142,24 @@ class BbsApiClient
     }
 
     /**
+     * Report the device's current autoadd config back to the BBS after reading it
+     * via CMD_GET_AUTOADD_CONFIG.
+     */
+    public function updateAutoAddConfig(int $configByte, int $maxHops): bool
+    {
+        $payload = json_encode([
+            'bridge_node_id' => $this->bridgeNodeId ?? '',
+            'config_byte'    => $configByte,
+            'max_hops'       => $maxHops,
+        ]);
+        if ($payload === false) {
+            $this->lastError = 'Could not encode autoadd config payload.';
+            return false;
+        }
+        return $this->post('/api/meshcore/autoadd-config', $payload) !== null;
+    }
+
+    /**
      * Acknowledge that a device command has been sent to the radio.
      */
     public function ackDeviceCommand(int $id): bool
