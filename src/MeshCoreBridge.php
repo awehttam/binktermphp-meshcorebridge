@@ -540,6 +540,9 @@ class MeshCoreBridge
             case 'lastheard':
                 return $this->lastHeardResponse();
 
+            case 'help':
+                return 'This is binktermphp-meshcore bridge. Link level commands: !test, !ping, !lastheard. Use HELP to speak to the BBS';
+
             default:
                 return null;
         }
