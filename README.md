@@ -4,7 +4,7 @@ Serial companion bridge between a MeshCore node and the binkterm-php packet BBS 
 
 The bridge connects to a MeshCore device over USB serial, receives direct messages from radio users, sends each message as a command to the BBS API, and relays the plain-text BBS response back to the originating MeshCore node.
 
-MeshCore requires a contact record for a remote node before messages from that node will pass through to the bridge. As of BinktermPHP 1.9.6, contacts can be managed directly through the BBS — by the sysop via Admin → BBS Settings → Packet BBS Nodes, and by users through their account settings under MeshCore Radio. The device can also be configured to auto-add users based on adverts; when another node advertises itself, the local MeshCore node adds the contact and will then accept messages from that remote user. Auto-add is not recommended due to device memory constraints, but remains an option if necessary.
+MeshCore requires a contact record for a remote node before messages from that node will pass through to the bridge. As of BinktermPHP 1.9.6, contacts can be managed directly through the BBS — by the sysop via Admin → BBS Settings → Packet BBS Nodes, and by users through their account settings under MeshCore Radio. The device can also be configured to auto-add users based on adverts; when another node advertises itself, the local MeshCore node adds the contact and will then accept messages from that remote user. Auto-add via adverts is a reasonable choice on small or lightly-used networks such as rural deployments, where the contact list is unlikely to grow large enough to stress device memory. On large or busy mesh networks it is not recommended, as frequent adverts from many nodes can fill device contact storage quickly.
 
 ## Features
 
