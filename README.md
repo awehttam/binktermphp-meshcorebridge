@@ -1,6 +1,6 @@
-# binkterm-php MeshCore Bridge
+# BinktermPHP MeshCore Bridge
 
-Serial companion bridge between a MeshCore node and the binkterm-php packet BBS gateway API.
+Serial companion bridge between a MeshCore node and the [BinktermPHP](https://github.com/awehttam/binkterm-php) packet BBS gateway API.
 
 The bridge connects to a MeshCore device over USB serial, receives direct messages from radio users, sends each message as a command to the BBS API, and relays the plain-text BBS response back to the originating MeshCore node.
 
@@ -23,7 +23,7 @@ MeshCore requires a contact record for a remote node before messages from that n
 - PHP 8.1 or newer.
 - Composer.
 - A MeshCore companion radio flashed with USB firmware and connected using a USB cable.
-- A reachable binkterm-php instance with the packet BBS API enabled.
+- A reachable BinktermPHP instance with the packet BBS API enabled.
 - An API key accepted by the BBS packet API.
 
 Platform notes:
@@ -76,7 +76,7 @@ Common keys:
 
 | Key | Required | Description |
 | --- | --- | --- |
-| `bbs_url` | Yes | Base URL for the binkterm-php site, without a trailing API path. |
+| `bbs_url` | Yes | Base URL for the BinktermPHP site, without a trailing API path. |
 | `api_key` | Yes | Shared bearer token accepted by the BBS packet API. |
 | `serial_port` | Yes | Serial device path, such as `/dev/ttyUSB0`, `/dev/ttyACM0`, or `COM3`. |
 | `baud_rate` | No | Serial speed. Defaults to `115200`. |
